@@ -1,4 +1,6 @@
-use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage};
+use cosmwasm_std::testing::{
+    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+};
 use cosmwasm_std::{from_binary, Deps, Empty, OwnedDeps};
 use cw721::{
     AllNftInfoResponse, ContractInfoResponse, NumTokensResponse, OwnerOfResponse, TokensResponse,
@@ -9,7 +11,7 @@ use serde::de::DeserializeOwned;
 
 use terra_trophies::metadata::{Metadata, Trait};
 use terra_trophies::nft::ExecuteMsg;
-use terra_trophies::testing::CustomQuerier;
+// use terra_trophies::testing::CustomQuerier;
 
 use crate::contract::{execute, instantiate, query};
 
@@ -23,8 +25,8 @@ fn proper_instantiation() {
     assert_eq!(
         res,
         ContractInfoResponse {
-            name: "Terra Trophies".to_string(),
-            symbol: "n/a".to_string()
+            name: "Osmonfts".to_string(),
+            symbol: "WOS".to_string()
         }
     );
 
@@ -46,8 +48,6 @@ fn minting_nfts() {
     let mut deps = setup_test();
 
     let msg = ExecuteMsg::Mint {
-        trophy_id: 1,
-        start_serial: 1,
         owners: vec!["alice".to_string(), "bob".to_string(), "charlie".to_string()],
     };
 
@@ -73,19 +73,20 @@ fn minting_nfts() {
         },
     );
     assert_eq!(res.access.owner, "bob".to_string());
-    assert_eq!(res.info.extension.name.unwrap(), "Trophy Number One #2".to_string());
+    // assert_eq!(res.info.extension.name.unwrap(), "Trophy Number One #2".to_string());
+    assert_eq!(res.info.extension.image.unwrap(), "https://osmo.art/?body=3&hair=2&");
 
     // make sure traits are correct
     let traits = vec![
         Trait {
             display_type: None,
-            trait_type: "trophy id".to_string(),
-            value: "1".to_string(),
+            trait_type: "body".to_string(),
+            value: 3.to_string(),
         },
         Trait {
             display_type: None,
-            trait_type: "serial".to_string(),
-            value: "2".to_string(),
+            trait_type: "hair".to_string(),
+            value: 2.to_string(),
         },
     ];
     assert_eq!(res.info.extension.attributes.unwrap(), traits);
@@ -111,8 +112,6 @@ fn transferring_nft() {
         mock_env(),
         mock_info("hub", &[]),
         ExecuteMsg::Mint {
-            trophy_id: 1,
-            start_serial: 1,
             owners: vec!["alice".to_string()],
         },
     )
@@ -152,8 +151,6 @@ fn querying_nft_by_owner() {
         mock_env(),
         mock_info("hub", &[]),
         ExecuteMsg::Mint {
-            trophy_id: 1,
-            start_serial: 1,
             owners: vec!["alice".to_string()],
         },
     )
@@ -165,8 +162,6 @@ fn querying_nft_by_owner() {
         mock_env(),
         mock_info("hub", &[]),
         ExecuteMsg::Mint {
-            trophy_id: 2,
-            start_serial: 5,
             owners: vec!["bob".to_string(), "alice".to_string()],
         },
     )
@@ -185,13 +180,9 @@ fn querying_nft_by_owner() {
 
 // HELPERS
 
-fn setup_test() -> OwnedDeps<MockStorage, MockApi, CustomQuerier> {
+fn setup_test() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     // create deps object
-    let mut deps = OwnedDeps {
-        storage: MockStorage::default(),
-        api: MockApi::default(),
-        querier: CustomQuerier::default(),
-    };
+    let mut deps = mock_dependencies(&[]);
 
     // instantiate contract
     let info = mock_info("hub", &[]);

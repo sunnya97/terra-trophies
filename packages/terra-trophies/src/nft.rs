@@ -9,10 +9,6 @@ use cw721::Expiration;
 pub enum ExecuteMsg {
     /// Mint multiple NFTs within a batch
     Mint {
-        /// Identifier of the trophy of which instances are to be minted
-        trophy_id: u64,
-        /// The first serial number to be assigned in this mint
-        start_serial: u64,
         /// The owners of the newly minted trophy instances
         owners: Vec<String>,
     },

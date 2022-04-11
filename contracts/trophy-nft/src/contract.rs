@@ -5,11 +5,11 @@ use cosmwasm_std::{
 use cw721::{AllNftInfoResponse, ContractInfoResponse, Cw721Execute, Cw721Query, NftInfoResponse};
 use cw721_base::{state::TokenInfo, ContractError, Cw721Contract, QueryMsg};
 
-use terra_trophies::hub::helpers::query_trophy_metadata;
+// use terra_trophies::hub::helpers::query_trophy_metadata;
 use terra_trophies::metadata::{Metadata, Trait};
 use terra_trophies::nft::ExecuteMsg;
 
-// we extend the default Cw721 contract
+// we extend the default Cw721 x
 pub type Parent<'a> = Cw721Contract<'a, Vec<Trait>, Empty>;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -21,8 +21,8 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     let parent = Parent::default();
     let contract_info = ContractInfoResponse {
-        name: "Terra Trophies".to_string(),
-        symbol: "n/a".to_string(),
+        name: "Osmonfts".to_string(),
+        symbol: "WOS".to_string(),
     };
     parent.contract_info.save(deps.storage, &contract_info)?;
     parent.minter.save(deps.storage, &info.sender)?; // sender is minter
@@ -41,10 +41,8 @@ pub fn execute(
     match msg {
         // our custom mint command
         ExecuteMsg::Mint {
-            trophy_id,
-            start_serial,
             owners,
-        } => execute_mint(deps, env, info, trophy_id, start_serial, owners),
+        } => execute_mint(deps, env, info, owners),
 
         // for all other commands, we simply routes to the parent Cw721 contract
         ExecuteMsg::TransferNft {
@@ -79,8 +77,6 @@ pub fn execute_mint(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    trophy_id: u64,
-    start_serial: u64,
     owners: Vec<String>,
 ) -> Result<Response, ContractError> {
     let parent = Parent::default();
@@ -97,17 +93,16 @@ pub fn execute_mint(
 
     for (idx, owner) in owners.iter().enumerate() {
         let token_id = start_token_id + idx as u64;
-        let serial = start_serial + idx as u64;
         let traits = vec![
             Trait {
                 display_type: None,
-                trait_type: "trophy id".to_string(),
-                value: trophy_id.to_string(),
+                trait_type: "body".to_string(),
+                value: 3.to_string(),
             },
             Trait {
                 display_type: None,
-                trait_type: "serial".to_string(),
-                value: serial.to_string(),
+                trait_type: "hair".to_string(),
+                value: 2.to_string(),
             },
         ];
         let token = TokenInfo {
@@ -122,8 +117,8 @@ pub fn execute_mint(
     Ok(Response::new()
         .add_attribute("action", "mint")
         .add_attribute("minter", info.sender)
-        .add_attribute("trophy_id", trophy_id.to_string())
-        .add_attribute("start_serial", start_serial.to_string())
+        // .add_attribute("trophy_id", trophy_id.to_string())
+        // .add_attribute("start_serial", start_serial.to_string())
         .add_attribute("amount_minted", owners.len().to_string()))
 }
 
@@ -175,36 +170,59 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 pub fn query_nft_info(deps: Deps, token_id: String) -> StdResult<NftInfoResponse<Metadata>> {
     let parent = Parent::default();
-    let minter = parent.minter.load(deps.storage)?;
+    // let minter = parent.minter.load(deps.storage)?;
     let token = parent.tokens.load(deps.storage, &token_id)?;
 
     let traits = token.extension;
-    let trophy_id = traits
-        .iter()
-        .cloned()
-        .find(|t| t.trait_type == "trophy id")
-        .ok_or_else(|| StdError::generic_err("cannot find `trophy_id` trait"))?
-        .value;
-    let serial = traits
-        .iter()
-        .cloned()
-        .find(|t| t.trait_type == "serial")
-        .ok_or_else(|| StdError::generic_err("cannot find `serial` trait"))?
-        .value;
 
-    // retrieve metadata of the trophy from hub
-    let mut metadata = query_trophy_metadata(&deps.querier, &minter, trophy_id.parse().unwrap())?;
+    let mut base_url = String::from("https://osmo.art/?");
 
-    // if the trophy's name is `trophy_name`, and the token's serial number is 69, then the
-    // token's full name is `trophy_name #69`
-    metadata.name = metadata.name.map(|name| format!("{} #{}", name, serial));
+    for t in &traits {
+        match t {
+            t if t.trait_type == "background" => {
+                base_url.push_str(&format!("background={}&", t.value))
+            }
+            t if t.trait_type == "body" => base_url.push_str(&format!("body={}&", t.value)),
+            t if t.trait_type == "cloth" => base_url.push_str(&format!("cloth={}&", t.value)),
+            t if t.trait_type == "glasses" => base_url.push_str(&format!("glasses={}&", t.value)),
+            t if t.trait_type == "hair" => base_url.push_str(&format!("hair={}&", t.value)),
+            t if t.trait_type == "mouth" => base_url.push_str(&format!("mouth={}&", t.value)),
+            _ => (),
+        }
+    }
 
-    // insert trophy id and serial into metadata's traits
-    metadata.attributes = if let Some(attrs) = metadata.attributes {
-        Some([&traits[..], &attrs[..]].concat())
-    } else {
-        Some(traits)
+    // let trophy_id = traits
+    //     .iter()
+    //     .cloned()
+    //     .find(|t| t.trait_type == "trophy id")
+    //     .ok_or_else(|| StdError::generic_err("cannot find `trophy_id` trait"))?
+    //     .value;
+
+    let mut metadata: Metadata = Metadata {
+        image: Some(base_url),
+        image_data: None,
+        external_url: None,
+        description: None,
+        name: None,
+        attributes: Some(traits),
+        background_color: None,
+        animation_url: None,
+        youtube_url: None,
     };
+
+    // // retrieve metadata of the trophy from hub
+    // let mut metadata = query_trophy_metadata(&deps.querier, &minter, trophy_id.parse().unwrap())?;
+
+    // // if the trophy's name is `trophy_name`, and the token's serial number is 69, then the
+    // // token's full name is `trophy_name #69`
+    // metadata.name = metadata.name.map(|name| format!("{} #{}", name, serial));
+
+    // // insert trophy id and serial into metadata's traits
+    // metadata.attributes = if let Some(attrs) = metadata.attributes {
+    //     Some([&traits[..], &attrs[..]].concat())
+    // } else {
+    //     Some(traits)
+    // };
 
     Ok(NftInfoResponse {
         token_uri: None,
